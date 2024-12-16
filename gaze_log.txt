@@ -1,0 +1,6 @@
+Person 1 has turned their head at 2024-12-16 16:26:30
+Person 1 has turned back at 2024-12-16 16:26:31
+Person 1 has turned their head at 2024-12-16 16:26:31
+Person 1 has turned back at 2024-12-16 16:26:31
+Person 1 has turned their head at 2024-12-16 16:26:31
+Person 1 has turned back at 2024-12-16 16:26:31
