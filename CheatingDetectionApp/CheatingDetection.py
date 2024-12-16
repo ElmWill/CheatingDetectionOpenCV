@@ -58,7 +58,7 @@ def get_head_pose(landmarks, frame):
     return euler_angles
 
 # Streamlit App
-st.title("Gaze and Head Pose Detection")
+st.title("Cheating Detection")
 
 # Initialize webcam feed
 cap = cv2.VideoCapture(0)
@@ -66,72 +66,88 @@ cap = cv2.VideoCapture(0)
 look_away_logged = {}
 head_turn_logged = {}
 HEAD_TURN_THRESHOLD = 15  # degrees for yaw to consider it a significant turn
-log_file_path = "gaze_log.txt"
 
-# Open log file
-with open(log_file_path, "a") as log_file:
+# Initialize log messages list
+log_messages = []
+
+def log(message):
+    log_messages.append(message)
+
+# Create a button to start/stop the webcam feed
+start_stop_button = st.button("Start", key="start_stop_button")
+
+# Create two columns for layout
+col1, col2 = st.columns([2, 1])  # Adjust the ratio as needed
+
+with col1:
     frame_placeholder = st.empty()  # Placeholder for video feed
 
-    # Create a button to stop the webcam feed
-    stop_button = st.button("Stop", key="stop_button")
+with col2:
+    st.subheader("Live Log")
+    # Set a fixed height for the log display and enable scrolling
+    log_display = st.empty()
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            st.write("No frame detected!")
-            break
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = detector(gray)
+webcam_running = False
 
-        for i, face in enumerate(faces):
-            landmarks = predictor(gray, face)
+if start_stop_button:
+    webcam_running = not webcam_running  # Toggle webcam state
 
-            left_eye_gaze_ratio = get_gaze_ratio([36, 37, 38, 39, 40, 41], landmarks, gray)
-            right_eye_gaze_ratio = get_gaze_ratio([42, 43, 44, 45, 46, 47], landmarks, gray)
+while webcam_running:
+    ret, frame = cap.read()
+    if not ret:
+        st.write("No frame detected!")
+        break
+    
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = detector(gray)
 
-            # Handle look away detection
-            if left_eye_gaze_ratio is not None and right_eye_gaze_ratio is not None:
-                avg_gaze_ratio = (left_eye_gaze_ratio + right_eye_gaze_ratio) / 2
+    for i, face in enumerate(faces):
+        landmarks = predictor(gray, face)
 
-                if avg_gaze_ratio < 0.3:  # Adjust threshold
-                    if i not in look_away_logged:  # Log once when looking away
-                        look_away_logged[i] = True
-                        log_file.write(f"Person {i+1} is looking away at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                        log_file.flush()  # Ensure immediate logging
-                else:
-                    if i in look_away_logged:  # Reset state when looking back
-                        log_file.write(f"Person {i+1} is no longer looking away at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                        log_file.flush()  # Ensure immediate logging
-                        look_away_logged.pop(i)
+        left_eye_gaze_ratio = get_gaze_ratio([36, 37, 38, 39, 40, 41], landmarks, gray)
+        right_eye_gaze_ratio = get_gaze_ratio([42, 43, 44, 45, 46, 47], landmarks, gray)
 
-            # Head pose estimation
-            euler_angles = get_head_pose(landmarks, frame)
-            yaw_angle = np.abs(euler_angles[1])
+        # Handle look away detection
+        if left_eye_gaze_ratio is not None and right_eye_gaze_ratio is not None:
+            avg_gaze_ratio = (left_eye_gaze_ratio + right_eye_gaze_ratio) / 2
 
-            # Handle head turn detection
-            if yaw_angle > HEAD_TURN_THRESHOLD:
-                if i not in head_turn_logged:  # Log once when head is turned
-                    head_turn_logged[i] = True
-                    log_file.write(f"Person {i+1} has turned their head at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    log_file.flush()  # Ensure immediate logging
+            if avg_gaze_ratio < 0.3:  # Adjust threshold
+                if i not in look_away_logged:  # Log once when looking away
+                    look_away_logged[i] = True
             else:
-                if i in head_turn_logged:  # Reset state when head turns back
-                    log_file.write(f"Person {i+1} has turned back at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    log_file.flush()  # Ensure immediate logging
-                    head_turn_logged.pop(i)
+                if i in look_away_logged:  # Reset state when looking 
+                    look_away_logged.pop(i)
 
-            # Draw rectangles and labels on the frame
-            cv2.rectangle(frame, (face.left(), face.top()), (face.right(), face.bottom()), (0, 255, 0), 2)
-            if yaw_angle > HEAD_TURN_THRESHOLD:
-                cv2.putText(frame, "Head Turned!", (face.left(), face.top() - 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+        # Head pose estimation
+        euler_angles = get_head_pose(landmarks, frame)
+        yaw_angle = np.abs(euler_angles[1])
 
-        # Convert the frame to RGB for Streamlit
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame_placeholder.image(frame_rgb, channels="RGB")
+        # Handle head turn detection
+        if yaw_angle > HEAD_TURN_THRESHOLD:
+            if i not in head_turn_logged:  # Log once when head is turned
+                head_turn_logged[i] = True
+                log(f"Person {i+1} has turned their head at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            if i in head_turn_logged :  # Reset state when head turns back
+                head_turn_logged.pop(i)
 
-        if stop_button:
-            break
+        # Draw rectangles and labels on the frame
+        cv2.rectangle(frame , (face.left(), face.top()), (face.right(), face.bottom()), (0, 255, 0), 2)
+        if yaw_angle > HEAD_TURN_THRESHOLD:
+            cv2.putText(frame, "SUS!", (face.left(), face.top() - 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+    # Convert the frame to RGB for Streamlit
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame_placeholder.image(frame_rgb, channels="RGB")
+
+    # Update the log display
+    log_display.markdown(
+        f"""
+        <div style="height: 400px; overflow-y: scroll;">
+        {"<br>".join(log_messages)}
+        </div>
+        """, unsafe_allow_html=True
+    )
 
 cap.release()
 cv2.destroyAllWindows()
