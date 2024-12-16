@@ -1,3 +1,4 @@
+import streamlit as st
 import cv2
 import dlib
 import numpy as np
@@ -22,7 +23,7 @@ def get_gaze_ratio(eye_points, facial_landmarks, frame_gray):
         return gaze_ratio
     return None
 
-def get_head_pose(landmarks):
+def get_head_pose(landmarks, frame):
     model_points = np.array([
         (0.0, 0.0, 0.0),         # Nose tip
         (0.0, -330.0, -65.0),    # Chin
@@ -56,20 +57,28 @@ def get_head_pose(landmarks):
 
     return euler_angles
 
+# Streamlit App
+st.title("Gaze and Head Pose Detection")
+
 # Initialize webcam feed
 cap = cv2.VideoCapture(0)
 
 look_away_logged = {}
 head_turn_logged = {}
-ALERT_THRESHOLD = 3  # in seconds
 HEAD_TURN_THRESHOLD = 15  # degrees for yaw to consider it a significant turn
 log_file_path = "gaze_log.txt"
 
 # Open log file
 with open(log_file_path, "a") as log_file:
+    frame_placeholder = st.empty()  # Placeholder for video feed
+
+    # Create a button to stop the webcam feed
+    stop_button = st.button("Stop", key="stop_button")
+
     while True:
         ret, frame = cap.read()
         if not ret:
+            st.write("No frame detected!")
             break
         
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -97,7 +106,7 @@ with open(log_file_path, "a") as log_file:
                         look_away_logged.pop(i)
 
             # Head pose estimation
-            euler_angles = get_head_pose(landmarks)
+            euler_angles = get_head_pose(landmarks, frame)
             yaw_angle = np.abs(euler_angles[1])
 
             # Handle head turn detection
@@ -117,11 +126,12 @@ with open(log_file_path, "a") as log_file:
             if yaw_angle > HEAD_TURN_THRESHOLD:
                 cv2.putText(frame, "Head Turned!", (face.left(), face.top() - 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-        cv2.imshow("Frame", frame)
+        # Convert the frame to RGB for Streamlit
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_placeholder.image(frame_rgb, channels="RGB")
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if stop_button:
             break
 
 cap.release()
 cv2.destroyAllWindows()
-
